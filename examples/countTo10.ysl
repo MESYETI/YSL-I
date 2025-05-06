@@ -1,0 +1,6 @@
+var i = 1
+loop:
+	print_ln $i
+	var i += 1
+	lt $i 11
+	goto_if *loop

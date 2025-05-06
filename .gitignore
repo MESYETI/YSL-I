@@ -1,0 +1,17 @@
+.dub
+docs.json
+__dummy.html
+docs/
+/ysli
+ysli.so
+ysli.dylib
+ysli.dll
+ysli.a
+ysli.lib
+ysli-test-*
+*.exe
+*.pdb
+*.o
+*.obj
+*.lst
+test.ysl
