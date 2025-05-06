@@ -102,15 +102,22 @@ class Environment {
 			e.retStack ~= [0];
 		}
 
+		string subChars = "|!$*";
+
+		if (!subChars.canFind(str[0])) {
+			e.retStack ~= [0];
+			return;
+		}
+
 		string operand = str[1 .. $];
+		string newOp = e.Substitute(line, operand);
+		while (newOp != operand) {
+			operand = newOp;
+			newOp   = e.Substitute(line, operand);
+		}
 
 		switch (str[0]) {
 			case '|': {
-				string newOp = e.Substitute(line, operand);
-				while (newOp != operand) {
-					operand = newOp;
-					newOp   = e.Substitute(line, operand);
-				}
 
 				if (!operand.isNumeric()) {
 					stderr.writefln("%d: | substitutor requires numeric value", line);
@@ -200,7 +207,7 @@ class Environment {
 				throw new YSLError();
 			}
 			default: {
-				e.retStack ~= [0];
+				assert(0);
 			}
 		}
 	}

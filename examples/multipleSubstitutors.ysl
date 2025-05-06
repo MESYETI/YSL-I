@@ -1,0 +1,3 @@
+var foo = "foobar"
+var varName = "foo"
+print_ln !!varName
