@@ -42,8 +42,8 @@ void CoreModule(Environment e) {
 		}
 	}));
 	e.AddFunc("cmp", Function((string[] args, Environment env) {
-		auto a = parse!Value(args[0]);
-		auto b = parse!Value(args[1]);
+		auto a = args[0];
+		auto b = args[1];
 
 		env.retStack ~= [a == b? 1 : 0];
 	}));
