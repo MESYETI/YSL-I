@@ -2,7 +2,7 @@
 Iterative YSL. So far, there have only been self-modifying YSLs (if you don't count
 YSL-C). These YSLs allow programs to modify their own source code. This is cool because
 it allows you to append new code to the end of the code map, pretty much allowing you
-to extend the language, as you can use this in conjunction with reading lines of code
+to extend the language, as you can use this while reading lines of code
 to parse what comes after certain statements.
 
 Iterative YSL goes all in on this idea of extendability. Instead of allowing programs
