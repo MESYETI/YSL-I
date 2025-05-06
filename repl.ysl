@@ -1,0 +1,12 @@
+import ysl
+
+loop:
+	print "> "
+	read_ln
+	var input copy return
+	cmp !input "run"
+	goto_if *next
+	ysl.interpret !input
+	goto *loop
+next:
+	1 load_next "repl.ysl"

@@ -5,21 +5,25 @@ import std.math;
 import std.stdio;
 import std.string;
 import std.algorithm;
+import core.stdc.stdlib : exit;
 import ysli.util;
 import ysli.environment;
 
 void CoreModule(Environment e) {
 	e.AddFunc("print", Function((string[] args, Environment env) {
-		foreach (ref arg ; args) {
-			writef("%s ", arg);
+		foreach (i, ref arg ; args) {
+			writef("%s%s", arg, i == args.length - 1? "" : " ");
 		}
 	}));
 	e.AddFunc("print_ln", Function((string[] args, Environment env) {
-		foreach (ref arg ; args) {
-			writef("%s ", arg);
+		foreach (i, ref arg ; args) {
+			writef("%s%s", arg, i == args.length - 1? "" : " ");
 		}
 
 		writeln();
+	}));
+	e.AddFunc("read_ln", Function((string[] args, Environment env) {
+		env.retStack ~= readln()[0 .. $ - 1].StringToIntArray();
 	}));
 	e.AddFunc("goto", Function((string[] args, Environment env) {
 		auto line = parse!Value(args[0]);
@@ -58,6 +62,30 @@ void CoreModule(Environment e) {
 		auto b = parse!Value(args[1]);
 
 		env.retStack ~= [a > b? 1 : 0];
+	}));
+	e.AddFunc("load_next", Function((string[] args, Environment env) {
+		env.next    = new CodeMap();
+		env.written = true;
+		env.LoadFile(env.next, args[0]);
+	}));
+	e.AddFunc("import_g", Function((string[] args, Environment env) {
+		if (args[0] !in env.modules) {
+			throw new YSLError(format("Module '%s' doesn't exist", args[0]));
+		}
+
+		env.modules[args[0]](env);
+	}));
+	e.AddFunc("import", Function((string[] args, Environment env) {
+		if (args[0] !in env.modules) {
+			throw new YSLError(format("Module '%s' doesn't exist", args[0]));
+		}
+
+		env.SetNamespace(args[0]);
+		env.modules[args[0]](env);
+		env.useNamespace = false;
+	}));
+	e.AddFunc("exit", Function((string[] args, Environment env) {
+		exit(0);
 	}));
 	e.AddFunc("var", Function((string[] args, Environment env) {
 		if (args.length < 2) {

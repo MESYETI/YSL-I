@@ -44,7 +44,7 @@ void main(string[] args) {
 	}
 
 	auto env = new Environment();
-	env.LoadFile(input);
+	env.LoadFile(env.current, input);
 
 	i = 0;
 	while (true) {

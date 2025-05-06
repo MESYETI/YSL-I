@@ -66,6 +66,8 @@ class Environment {
 	bool               increment;
 	Module[string]     modules;
 	size_t             iteration;
+	bool               useNamespace;
+	string             namespace;
 
 	this() {
 		current       = new SortedMap!(int, string);
@@ -85,9 +87,12 @@ class Environment {
 		locals        = [];
 		increment     = true;
 		modules       = new Module[string];
+		useNamespace  = false;
 
 		import ysli.modules.core;
+		import ysli.modules.ysl;
 		modules["core"] = &CoreModule;
+		modules["ysl"]  = &YslModule;
 
 		// load core module
 		modules["core"](this);
@@ -295,22 +300,25 @@ class Environment {
 		return false;
 	}
 
-	void LoadFile(string path) {
-		current = new SortedMap!(int, string);
-
+	void LoadFile(CodeMap map, string path) {
 		File file = File(path, "r");
 
 		string line;
 		int    num = 10;
 
 		while ((line = file.readln()) !is null) {
-			current[num]  = line[0 .. $ - 1];
-			num          += 10;
+			map[num]  = line[0 .. $ - 1];
+			num      += 10;
 		}
 	}
 
+	void SetNamespace(string pnamespace) {
+		useNamespace = true;
+		namespace    = pnamespace;
+	}
+
 	void AddFunc(string name, Function func) {
-		funcs[name] ~= func;
+		funcs[useNamespace? format("%s.%s", namespace, name) : name] ~= func;
 	}
 
 	void CallFunc(Function func, string[] args) {
@@ -372,12 +380,24 @@ class Environment {
 			return; // label
 		}
 		else {
-			if (parts[0] !in funcs) {
-				stderr.writefln("%d: Function '%s' does not exist", line, parts[0]);
-				throw new YSLError();
+			Function func;
+
+			switch (parts[0]) {
+				case "<splitter>": {
+					func = splitter;
+					break;
+				}
+				default: {		
+					if (parts[0] !in funcs) {
+						stderr.writefln("%d: Function '%s' does not exist", line, parts[0]);
+						throw new YSLError();
+					}
+
+					func = funcs[parts[0]][$ - 1];
+				}
 			}
 
-			CallFunc(funcs[parts[0]][$ - 1], parts[1 .. $]);
+			CallFunc(func, parts[1 .. $]);
 		}
 	}
 
