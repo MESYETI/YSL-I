@@ -4,6 +4,7 @@ import std.conv;
 import std.stdio;
 import std.string;
 import std.algorithm;
+import core.stdc.stdlib : exit;
 import ysli.list;
 import ysli.util;
 import ysli.split;
@@ -64,6 +65,7 @@ class Environment {
 	Variable[string][] locals;
 	bool               increment;
 	Module[string]     modules;
+	size_t             iteration;
 
 	this() {
 		current       = new SortedMap!(int, string);
@@ -352,7 +354,7 @@ class Environment {
 				// TODO: delete the line
 			}
 			else {
-				string codeLine = code.strip().find(" ")[1 .. $];
+				string codeLine = parts[1 .. $].join(" ");
 				
 				next[parse!int(parts[0])] = codeLine;
 			}
@@ -381,7 +383,17 @@ class Environment {
 		ip = current.entries.head;
 
 		while (ip !is null) {
-			RunLine(ip.value.key, ip.value.value);
+			try {
+				RunLine(ip.value.key, ip.value.value);
+			}
+			catch (Exception e) {
+				writefln(
+					"=== EXCEPTION from line %d in iteration %d ===", ip.value.key,
+					iteration
+				);
+				writeln(e);
+				exit(1);
+			}
 
 			if (increment) {
 				ip = ip.next;
@@ -391,8 +403,9 @@ class Environment {
 	}
 
 	void NextIteration() {
-		current = next;
-		next    = new SortedMap!(int, string);
+		current    = next;
+		next       = new SortedMap!(int, string);
+		iteration += 1;
 		Reset();
 	}
 }

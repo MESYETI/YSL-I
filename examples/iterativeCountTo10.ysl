@@ -1,0 +1,8 @@
+var line = 10
+var i = 1
+loop:
+	$line print_ln $i
+	var line += 10
+	var i += 1
+	lt $line 101
+	goto_if *loop
