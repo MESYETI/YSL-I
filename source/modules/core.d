@@ -63,11 +63,6 @@ void CoreModule(Environment e) {
 
 		env.retStack ~= [a > b? 1 : 0];
 	}));
-	e.AddFunc("load_next", Function((string[] args, Environment env) {
-		env.next    = new CodeMap();
-		env.written = true;
-		env.LoadFile(env.next, args[0]);
-	}));
 	e.AddFunc("import_g", Function((string[] args, Environment env) {
 		if (args[0] !in env.modules) {
 			throw new YSLError(format("Module '%s' doesn't exist", args[0]));

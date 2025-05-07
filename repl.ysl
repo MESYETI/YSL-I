@@ -9,4 +9,5 @@ loop:
 	ysl.interpret !input
 	goto *loop
 next:
-	1 load_next "repl.ysl"
+	0 import ysl
+	1 ysl.load_next "repl.ysl"

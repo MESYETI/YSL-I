@@ -16,6 +16,11 @@ alias Label    = ListNode!(MapEntry!(Value, string));
 alias Variable = Value[];
 alias Module   = void function(Environment e);
 
+enum RWMode {
+	Current,
+	Next
+}
+
 enum FunctionType {
 	BuiltIn,
 	Ysl
@@ -68,6 +73,8 @@ class Environment {
 	size_t             iteration;
 	bool               useNamespace;
 	string             namespace;
+	RWMode             readMode;
+	RWMode             writeMode;
 
 	this() {
 		current       = new SortedMap!(int, string);
@@ -91,12 +98,24 @@ class Environment {
 
 		import ysli.modules.core;
 		import ysli.modules.ysl;
+		import ysli.modules.file;
 		modules["core"] = &CoreModule;
 		modules["ysl"]  = &YslModule;
+		modules["file"] = &FileModule;
 
 		// load core module
 		modules["core"](this);
 	}
+
+	CodeMap GetMap(RWMode mode) {
+		final switch (mode) {
+			case RWMode.Current: return current;
+			case RWMode.Next:    return next;
+		}
+	}
+
+	CodeMap GetReadMap()  => GetMap(readMode);
+	CodeMap GetWriteMap() => GetMap(writeMode);
 
 	// built in stuff
 	static private void Substitutor(string[] params, Environment e) {
@@ -107,7 +126,7 @@ class Environment {
 			e.retStack ~= [0];
 		}
 
-		string subChars = "|!$*";
+		string subChars = "|!$*\\";
 
 		if (!subChars.canFind(str[0])) {
 			e.retStack ~= [0];
@@ -115,14 +134,18 @@ class Environment {
 		}
 
 		string operand = str[1 .. $];
-		string newOp = e.Substitute(line, operand);
-		while (newOp != operand) {
-			operand = newOp;
-			newOp   = e.Substitute(line, operand);
+
+		if (str[0] != '\\') {
+			string newOp = e.Substitute(line, operand);
+			while (newOp != operand) {
+				operand = newOp;
+				newOp   = e.Substitute(line, operand);
+			}
 		}
 
 		switch (str[0]) {
 			case '|': {
+				auto code = e.GetMap(e.readMode);
 
 				if (!operand.isNumeric()) {
 					stderr.writefln("%d: | substitutor requires numeric value", line);
@@ -136,31 +159,54 @@ class Environment {
 					throw new YSLError();
 				}
 
-				e.retStack ~= StringToIntArray(e.current[getLine]);
+				e.retStack ~= StringToIntArray(code[getLine]);
 				e.retStack ~= [1];
 				break;
 			}
 			case '!': {
-				if (!e.VariableExists(operand)) {
-					stderr.writefln(
-						"Error: line %d: Unknown variable %s", line, operand
-					);
-					throw new YSLError();
-				}
+				switch (operand) {
+					case "<pass>":   e.retStack ~= e.PopPass();   break;
+					case "<call>":   e.retStack ~= [e.PopCall()]; break;
+					case "<return>": e.retStack ~= e.PopReturn(); break;
+					default: {
+						if (!e.VariableExists(operand)) {
+							stderr.writefln(
+								"Error: line %d: Unknown variable %s", line, operand
+							);
+							throw new YSLError();
+						}
 
-				e.retStack ~= *e.GetVariable(operand);
+						e.retStack ~= *e.GetVariable(operand);
+					}
+				}
 				e.retStack ~= [1];
 				break;
 			}
 			case '$': {
-				if (!e.VariableExists(operand)) {
-					stderr.writefln(
-						"Error: line %d: Unknown variable %s", line, operand
-					);
-					throw new YSLError();
-				}
+				switch (operand) {
+					case "<pass>": {
+						e.retStack ~= e.PopPass()[0].text().StringToIntArray();
+						break;
+					}
+					case "<call>": {
+						e.retStack ~= e.PopCall().text().StringToIntArray();
+						break;
+					}
+					case "<return>": {
+						e.retStack ~= e.PopReturn()[0].text().StringToIntArray();
+						break;
+					}
+					default: {
+						if (!e.VariableExists(operand)) {
+							stderr.writefln(
+								"Error: line %d: Unknown variable %s", line, operand
+							);
+							throw new YSLError();
+						}
 
-				e.retStack ~= text((*e.GetVariable(operand))[0]).StringToIntArray();
+						e.retStack ~= text((*e.GetVariable(operand))[0]).StringToIntArray();
+					}
+				}
 				e.retStack ~= [1];
 				break;
 			}
@@ -210,6 +256,11 @@ class Environment {
 					"Error: line %d: Couldn't find label '%s'", line, operand
 				);
 				throw new YSLError();
+			}
+			case '\\': {
+				e.retStack ~= operand.StringToIntArray();
+				e.retStack ~= [1];
+				break;
 			}
 			default: {
 				assert(0);
@@ -351,6 +402,20 @@ class Environment {
 		return part;
 	}
 
+	Function GetFunc(Value line, string func) {
+		switch (func) {
+			case "<splitter>": return splitter;
+			default: {		
+				if (func !in funcs) {
+					stderr.writefln("%d: Function '%s' does not exist", line, func);
+					throw new YSLError();
+				}
+
+				return funcs[func][$ - 1];
+			}
+		}
+	}
+
 	void RunLine(Value line, string code) {
 		CallFunc(splitter, [code]);
 		auto parts = PopReturn().IntArrayToStringArray();
@@ -380,24 +445,7 @@ class Environment {
 			return; // label
 		}
 		else {
-			Function func;
-
-			switch (parts[0]) {
-				case "<splitter>": {
-					func = splitter;
-					break;
-				}
-				default: {		
-					if (parts[0] !in funcs) {
-						stderr.writefln("%d: Function '%s' does not exist", line, parts[0]);
-						throw new YSLError();
-					}
-
-					func = funcs[parts[0]][$ - 1];
-				}
-			}
-
-			CallFunc(func, parts[1 .. $]);
+			CallFunc(GetFunc(line, parts[0]), parts[1 .. $]);
 		}
 	}
 
