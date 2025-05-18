@@ -1,0 +1,9 @@
+narvi:
+goto *.end
+
+.comment:
+	goto_inc $<call>
+
+.end:
+	import ysl
+	ysl.new_func "#" *.comment

@@ -33,7 +33,7 @@ enum ParamType {
 	Other
 }
 
-struct Function {
+struct FuncCall {
 	FunctionType  type;
 	bool          giveIP;
 	ParamType[][] paramSets;
@@ -87,6 +87,30 @@ struct Function {
 
 		return true;
 	}
+
+	FuncCall* Copy() {
+		auto ret          = new FuncCall();
+		ret.type          = type;
+		ret.giveIP        = giveIP;
+		ret.paramSets     = paramSets.dup;
+		ret.enforceParams = enforceParams;
+
+		final switch (type) {
+			case FunctionType.BuiltIn: ret.func  = func;  break;
+			case FunctionType.Ysl:     ret.label = label; break;
+		}
+		return ret;
+	}
+}
+
+struct Function {
+	FuncCall* compile;
+	FuncCall* run;
+}
+
+enum RunMode {
+	Compile,
+	Run
 }
 
 class YSLError : Exception {
@@ -106,8 +130,8 @@ class Environment {
 	CodeMap            current;
 	CodeMap            next;
 	Label              ip;
-	Function[]         substitutors;
-	Function           splitter;
+	FuncCall[]         substitutors;
+	FuncCall           splitter;
 	Variable[]         passStack;
 	Value[]            callStack;
 	Variable[]         retStack;
@@ -121,9 +145,10 @@ class Environment {
 	string             namespace;
 	RWMode             readMode;
 	RWMode             writeMode;
+	RunMode            runMode;
 
 	// vectors
-	Function* atExit;
+	FuncCall* atExit;
 
 	this() {
 		current       = new SortedMap!(int, string);
@@ -133,8 +158,8 @@ class Environment {
 
 	void Reset() {
 		written       = false;
-		substitutors ~= Function(&Substitutor, true);
-		splitter      = Function(&Split, true);
+		substitutors ~= FuncCall(&Substitutor, true);
+		splitter      = FuncCall(&Split, true);
 		passStack     = [];
 		callStack     = [];
 		retStack      = [];
@@ -144,6 +169,7 @@ class Environment {
 		increment     = true;
 		modules       = new Module[string];
 		useNamespace  = false;
+		runMode       = RunMode.Run;
 
 		import ysli.modules.core;
 		import ysli.modules.ysl;
@@ -428,11 +454,13 @@ class Environment {
 		namespace    = pnamespace;
 	}
 
-	void AddFunc(string name, Function func) {
-		funcs[useNamespace? format("%s.%s", namespace, name) : name] ~= func;
+	void AddFunc(string name, FuncCall func) {
+		funcs[useNamespace? format("%s.%s", namespace, name) : name] ~= Function(
+			null, func.Copy()
+		);
 	}
 
-	void CallFunc(Function func, string[] args) {
+	void CallFunc(FuncCall func, string[] args) {
 		final switch (func.type) {
 			case FunctionType.BuiltIn: {
 				if (func.giveIP) {
@@ -457,7 +485,7 @@ class Environment {
 		}
 	}
 
-	void RunFunc(Function func, string[] args) {
+	void RunFunc(FuncCall func, string[] args) {
 		final switch (func.type) {
 			case FunctionType.BuiltIn: {
 				if (func.giveIP) {
@@ -503,16 +531,17 @@ class Environment {
 		return part;
 	}
 
-	Function GetFunc(Value line, string func) {
+	FuncCall* GetFunc(Value line, string func) {
 		switch (func) {
-			case "<splitter>": return splitter;
+			case "<splitter>": return &splitter;
 			default: {		
 				if (func !in funcs) {
 					stderr.writefln("%d: Function '%s' does not exist", line, func);
 					throw new YSLError();
 				}
 
-				return funcs[func][$ - 1];
+				if (runMode == RunMode.Compile) return funcs[func][$ - 1].compile;
+				else                            return funcs[func][$ - 1].run;
 			}
 		}
 	}
@@ -547,7 +576,11 @@ class Environment {
 			return; // label
 		}
 		else {
-			CallFunc(GetFunc(line, parts[0]), parts[1 .. $]);
+			auto func = GetFunc(line, parts[0]);
+
+			if (func !is null) {
+				CallFunc(*func, parts[1 .. $]);
+			}
 		}
 	}
 

@@ -10,7 +10,7 @@ import ysli.environment;
 private File[int] files;
 
 void FileModule(Environment e) {
-	e.AddFunc("open", Function((string[] args, Environment env) {
+	e.AddFunc("open", FuncCall((string[] args, Environment env) {
 		int file = files.keys.length > 0? files.keys().maxElement() + 1 : 0;
 
 		try {
@@ -23,7 +23,7 @@ void FileModule(Environment e) {
 
 		env.retStack ~= [file];
 	}));
-	e.AddFunc("write", Function((string[] args, Environment env) {
+	e.AddFunc("write", FuncCall((string[] args, Environment env) {
 		int file = parse!int(args[0]);
 
 		if (file !in files) {
@@ -40,7 +40,7 @@ void FileModule(Environment e) {
 		}
 		files[file].flush();
 	}));
-	e.AddFunc("read", Function((string[] args, Environment env) {
+	e.AddFunc("read", FuncCall((string[] args, Environment env) {
 		int file = parse!int(args[0]);
 
 		if (file !in files) {
@@ -64,7 +64,7 @@ void FileModule(Environment e) {
 		}
 		env.retStack ~= ret;
 	}));
-	e.AddFunc("tell", Function((string[] args, Environment env) {
+	e.AddFunc("tell", FuncCall((string[] args, Environment env) {
 		int file = parse!int(args[0]);
 
 		if (file !in files) {
@@ -74,7 +74,7 @@ void FileModule(Environment e) {
 
 		env.retStack ~= [cast(Value) files[file].tell];
 	}));
-	e.AddFunc("seek_set", Function((string[] args, Environment env) {
+	e.AddFunc("seek_set", FuncCall((string[] args, Environment env) {
 		int file = parse!int(args[0]);
 
 		if (file !in files) {
@@ -84,7 +84,7 @@ void FileModule(Environment e) {
 
 		files[file].seek(parse!int(args[1]), SEEK_SET);
 	}));
-	e.AddFunc("seek_end", Function((string[] args, Environment env) {
+	e.AddFunc("seek_end", FuncCall((string[] args, Environment env) {
 		int file = parse!int(args[0]);
 
 		if (file !in files) {
@@ -94,7 +94,7 @@ void FileModule(Environment e) {
 
 		files[file].seek(parse!int(args[1]), SEEK_END);
 	}));
-	e.AddFunc("seek_cur", Function((string[] args, Environment env) {
+	e.AddFunc("seek_cur", FuncCall((string[] args, Environment env) {
 		int file = parse!int(args[0]);
 
 		if (file !in files) {
@@ -104,7 +104,7 @@ void FileModule(Environment e) {
 
 		files[file].seek(parse!int(args[1]), SEEK_CUR);
 	}));
-	e.AddFunc("close", Function((string[] args, Environment env) {
+	e.AddFunc("close", FuncCall((string[] args, Environment env) {
 		int file = parse!int(args[0]);
 
 		if (file !in files) {

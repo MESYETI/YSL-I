@@ -10,29 +10,29 @@ import ysli.util;
 import ysli.environment;
 
 void CoreModule(Environment e) {
-	e.AddFunc("print", Function((string[] args, Environment env) {
+	e.AddFunc("print", FuncCall((string[] args, Environment env) {
 		foreach (i, ref arg ; args) {
 			writef("%s%s", arg, i == args.length - 1? "" : " ");
 		}
 	}));
-	e.AddFunc("print_ln", Function((string[] args, Environment env) {
+	e.AddFunc("print_ln", FuncCall((string[] args, Environment env) {
 		foreach (i, ref arg ; args) {
 			writef("%s%s", arg, i == args.length - 1? "" : " ");
 		}
 
 		writeln();
 	}));
-	e.AddFunc("read_ln", Function((string[] args, Environment env) {
+	e.AddFunc("read_ln", FuncCall((string[] args, Environment env) {
 		env.retStack ~= readln()[0 .. $ - 1].StringToIntArray();
 	}));
-	e.AddFunc("goto", Function((string[] args, Environment env) {
+	e.AddFunc("goto", FuncCall((string[] args, Environment env) {
 		auto line = parse!Value(args[0]);
 		if (env.Jump(line)) return;
 
 		stderr.writefln("Error: goto: Couldn't find line %d", line);
 		throw new YSLError();
 	}));
-	e.AddFunc("goto_inc", Function((string[] args, Environment env) {
+	e.AddFunc("goto_inc", FuncCall((string[] args, Environment env) {
 		auto line = parse!Value(args[0]);
 		if (env.Jump(line)) {
 			env.increment = true;
@@ -42,7 +42,7 @@ void CoreModule(Environment e) {
 		stderr.writefln("Error: goto_inc: Couldn't find line %d", line);
 		throw new YSLError();
 	}));
-	e.AddFunc("goto_if", Function((string[] args, Environment env) {
+	e.AddFunc("goto_if", FuncCall((string[] args, Environment env) {
 		auto line = parse!Value(args[0]);
 
 		if (env.PopReturn()[0] == 0) {
@@ -55,35 +55,35 @@ void CoreModule(Environment e) {
 			throw new YSLError();
 		}
 	}));
-	e.AddFunc("done", Function((string[] args, Environment env) {
+	e.AddFunc("done", FuncCall((string[] args, Environment env) {
 		throw new YSLDone();
 	}));
-	e.AddFunc("cmp", Function((string[] args, Environment env) {
+	e.AddFunc("cmp", FuncCall((string[] args, Environment env) {
 		auto a = args[0];
 		auto b = args[1];
 
 		env.retStack ~= [a == b? 1 : 0];
 	}));
-	e.AddFunc("lt", Function((string[] args, Environment env) {
+	e.AddFunc("lt", FuncCall((string[] args, Environment env) {
 		auto a = parse!Value(args[0]);
 		auto b = parse!Value(args[1]);
 
 		env.retStack ~= [a < b? 1 : 0];
 	}));
-	e.AddFunc("gt", Function((string[] args, Environment env) {
+	e.AddFunc("gt", FuncCall((string[] args, Environment env) {
 		auto a = parse!Value(args[0]);
 		auto b = parse!Value(args[1]);
 
 		env.retStack ~= [a > b? 1 : 0];
 	}));
-	e.AddFunc("import_g", Function((string[] args, Environment env) {
+	e.AddFunc("import_g", FuncCall((string[] args, Environment env) {
 		if (args[0] !in env.modules) {
 			throw new YSLError(format("Module '%s' doesn't exist", args[0]));
 		}
 
 		env.modules[args[0]](env);
 	}));
-	e.AddFunc("import", Function((string[] args, Environment env) {
+	e.AddFunc("import", FuncCall((string[] args, Environment env) {
 		if (args[0] !in env.modules) {
 			throw new YSLError(format("Module '%s' doesn't exist", args[0]));
 		}
@@ -92,10 +92,10 @@ void CoreModule(Environment e) {
 		env.modules[args[0]](env);
 		env.useNamespace = false;
 	}));
-	e.AddFunc("exit", Function((string[] args, Environment env) {
+	e.AddFunc("exit", FuncCall((string[] args, Environment env) {
 		exit(0);
 	}));
-	e.AddFunc("var", Function((string[] args, Environment env) {
+	e.AddFunc("var", FuncCall((string[] args, Environment env) {
 		if (args.length < 2) {
 			stderr.writefln("Error: var: Requires 2 arguments: variable name and operator");
 			throw new YSLError();
