@@ -1,0 +1,22 @@
+goto *main
+
+at_exit:
+	print_ln "Exit!!"
+	done
+
+comment:
+	goto_inc $<call>
+
+main:
+	import ysl
+
+	ysl.new_func "#" *comment
+	# ok i have comments now
+
+	# create function definition
+	ysl.new_func "at_exit" *at_exit
+
+	# now set it to run when the interpreter finishes
+	ysl.set_at_exit "at_exit"
+	# you can also use its line number if you don't want to define a function for it
+	ysl.set_at_exit *at_exit

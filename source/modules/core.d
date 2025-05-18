@@ -32,6 +32,16 @@ void CoreModule(Environment e) {
 		stderr.writefln("Error: goto: Couldn't find line %d", line);
 		throw new YSLError();
 	}));
+	e.AddFunc("goto_inc", Function((string[] args, Environment env) {
+		auto line = parse!Value(args[0]);
+		if (env.Jump(line)) {
+			env.increment = true;
+			return;
+		}
+
+		stderr.writefln("Error: goto_inc: Couldn't find line %d", line);
+		throw new YSLError();
+	}));
 	e.AddFunc("goto_if", Function((string[] args, Environment env) {
 		auto line = parse!Value(args[0]);
 
@@ -44,6 +54,9 @@ void CoreModule(Environment e) {
 			stderr.writefln("Error: goto: Couldn't find line %d", line);
 			throw new YSLError();
 		}
+	}));
+	e.AddFunc("done", Function((string[] args, Environment env) {
+		throw new YSLDone();
 	}));
 	e.AddFunc("cmp", Function((string[] args, Environment env) {
 		auto a = args[0];

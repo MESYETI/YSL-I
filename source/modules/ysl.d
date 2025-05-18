@@ -1,6 +1,8 @@
 module ysli.modules.ysl;
 
+import std.conv;
 import std.stdio;
+import std.string;
 import std.exception;
 import ysli.util;
 import ysli.environment;
@@ -49,5 +51,41 @@ void YslModule(Environment e) {
 	e.AddFunc("load_end", Function(loadEnd));
 	e.AddFunc("alloc_line", Function((string[] args, Environment env) {
 		env.retStack ~= [env.GetWriteMap().entries.head.GetLastEntry().value.key + 10];
+	}));
+	e.AddFunc("new_func", Function((string[] args, Environment env) {
+		Label label = env.GetLine(parse!Value(args[1]));
+
+		if (label is null) {
+			stderr.writefln("Error: new_func: Line number does not exist");
+			throw new YSLError();
+		}
+
+		Function func = Function(label);
+
+		if (args[0] !in env.funcs) {
+			env.funcs[args[0]] = [];
+		}
+
+		env.funcs[args[0]] ~= func;
+	}));
+	e.AddFunc("set_at_exit", Function((string[] args, Environment env) {
+		if (args[0].isNumeric()) {
+			auto line = env.GetLine(parse!Value(args[0]));
+
+			if (line is null) {
+				stderr.writefln("Error: set_at_exit: Line number does not exist");
+				throw new YSLError();
+			}
+
+			env.atExit = new Function(line);
+		}
+		else {
+			if (args[0] !in env.funcs) {
+				stderr.writefln("Error: set_at_exit: Function does not exist");
+				throw new YSLError();
+			}
+
+			env.atExit = &env.funcs[args[0]][$ - 1];
+		}
 	}));
 }

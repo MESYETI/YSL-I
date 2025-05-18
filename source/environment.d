@@ -28,9 +28,16 @@ enum FunctionType {
 
 alias BuiltInFunc = void function(string[] args, Environment e);
 
+enum ParamType {
+	Integer,
+	Other
+}
+
 struct Function {
-	FunctionType type;
-	bool         giveIP;
+	FunctionType  type;
+	bool          giveIP;
+	ParamType[][] paramSets;
+	bool          enforceParams;
 
 	union {
 		BuiltInFunc func;
@@ -43,15 +50,54 @@ struct Function {
 		giveIP = pgiveIP;
 	}
 
+	this(ParamType[][] pparamSets, BuiltInFunc pfunc) {
+		type          = FunctionType.BuiltIn;
+		func          = pfunc;
+		enforceParams = true;
+		paramSets     = pparamSets;
+	}
+
 	this(Label plabel) {
 		type  = FunctionType.Ysl;
 		label = plabel;
+	}
+
+	bool ValidateSet(ParamType[] set, string[] args) {
+		if (set.length != args.length) return false;
+
+		foreach (i, ref param ; set) {
+			final switch (param) {
+				case ParamType.Integer: {
+					if (!args[i].isNumeric()) return false;
+					break;
+				}
+				case ParamType.Other: break;
+			}
+		}
+
+		return true;
+	}
+
+	bool Validate(string[] args) {
+		if (enforceParams) return true;
+
+		foreach (ref set ; paramSets) {
+			if (!ValidateSet(set, args)) return false;
+		}
+
+		return true;
 	}
 }
 
 class YSLError : Exception {
 	this(string msg = "", string file = __FILE__, size_t line = __LINE__) {
 		super(msg, file, line);
+	}
+}
+
+class YSLDone : Exception {
+	this() {
+		super("", "", 0);
 	}
 }
 
@@ -75,6 +121,9 @@ class Environment {
 	string             namespace;
 	RWMode             readMode;
 	RWMode             writeMode;
+
+	// vectors
+	Function* atExit;
 
 	this() {
 		current       = new SortedMap!(int, string);
@@ -149,6 +198,7 @@ class Environment {
 
 				if (!operand.isNumeric()) {
 					stderr.writefln("%d: | substitutor requires numeric value", line);
+					stderr.writefln("got: %s", operand);
 					throw new YSLError();
 				}
 
@@ -339,6 +389,16 @@ class Environment {
 		}
 	}
 
+	Label GetLine(Value line) {
+		foreach (entry ; current.entries) {
+			if (entry.value.key == line) {
+				return entry;
+			}
+		}
+
+		return null;
+	}
+
 	bool Jump(int line) {
 		foreach (entry ; current.entries) {
 			if (entry.value.key == line) {
@@ -383,14 +443,55 @@ class Environment {
 				break;
 			}
 			case FunctionType.Ysl: {
-				assert(0); // TODO
+				callStack ~= ip.value.key;
+
+				foreach (ref arg ; args) {
+					passStack ~= arg.StringToIntArray();
+				}
+
+				if (Jump(func.label.value.key)) return;
+
+				stderr.writefln("Error: Couldn't call function at %d", ip.value.key);
+				throw new YSLError();
+			}
+		}
+	}
+
+	void RunFunc(Function func, string[] args) {
+		final switch (func.type) {
+			case FunctionType.BuiltIn: {
+				if (func.giveIP) {
+					callStack ~= ip.value.key;
+				}
+
+				func.func(args, this);
+				break;
+			}
+			case FunctionType.Ysl: {
+				callStack ~= ip.value.key;
+
+				foreach (ref arg ; args) {
+					passStack ~= arg.StringToIntArray();
+				}
+
+				if (!Jump(func.label.value.key)) {
+					stderr.writefln("Error: Couldn't call function at %d", ip.value.key);
+					throw new YSLError();
+				}
+
+				try {
+					RunFromHere();
+				}
+				catch (YSLDone) {
+					return;
+				}
 			}
 		}
 	}
 
 	string Substitute(Value line, string part) {
 		foreach (ref substitutor ; substitutors) {
-			CallFunc(substitutor, [part]);
+			RunFunc(substitutor, [part]);
 
 			if (PopReturn() == [0]) {
 				continue;
@@ -435,8 +536,9 @@ class Environment {
 			}
 			else {
 				string codeLine = parts[1 .. $].join(" ");
+				int writeLine = parse!int(parts[0]);
 				
-				next[parse!int(parts[0])] = codeLine;
+				next[writeLine] = codeLine;
 			}
 
 			written = true;
@@ -449,17 +551,13 @@ class Environment {
 		}
 	}
 
-	void Run() {
-		if (current.entries.head is null) {
-			stderr.writeln("Nothing to run");
-			return;
-		}
-
-		ip = current.entries.head;
-
+	void RunFromHere() {
 		while (ip !is null) {
 			try {
 				RunLine(ip.value.key, ip.value.value);
+			}
+			catch (YSLDone e) {
+				throw e;
 			}
 			catch (Exception e) {
 				writefln(
@@ -474,6 +572,21 @@ class Environment {
 				ip = ip.next;
 			}
 			increment = true;
+		}
+	}
+
+	void Run() {
+		if (current.entries.head is null) {
+			stderr.writeln("Nothing to run");
+			return;
+		}
+
+		ip = current.entries.head;
+		RunFromHere();
+
+		if (atExit !is null) {
+			ip = current.entries.head.GetLastEntry();
+			RunFunc(*atExit, []);
 		}
 	}
 
