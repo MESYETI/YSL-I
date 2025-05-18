@@ -66,7 +66,41 @@ void YslModule(Environment e) {
 			env.funcs[args[0]] = [];
 		}
 
-		env.funcs[args[0]] ~= Function(null, func.Copy());
+		env.funcs[args[0]] ~= Function(
+			new FuncCall(&Environment.DefaultCompCall, true), func.Copy()
+		);
+	}));
+	e.AddFunc("new_comp_func", FuncCall((string[] args, Environment env) {
+		Label label = env.GetLine(parse!Value(args[1]));
+
+		if (label is null) {
+			stderr.writefln("Error: new_comp_func: Line number does not exist");
+			throw new YSLError();
+		}
+
+		FuncCall func = FuncCall(label);
+
+		if (args[0] !in env.funcs) {
+			env.funcs[args[0]] = [];
+		}
+
+		env.funcs[args[0]] ~= Function(func.Copy(), null);
+	}));
+	e.AddFunc("new_hybrid_func", FuncCall((string[] args, Environment env) {
+		Label label = env.GetLine(parse!Value(args[1]));
+
+		if (label is null) {
+			stderr.writefln("Error: new_comp_func: Line number does not exist");
+			throw new YSLError();
+		}
+
+		FuncCall func = FuncCall(label);
+
+		if (args[0] !in env.funcs) {
+			env.funcs[args[0]] = [];
+		}
+
+		env.funcs[args[0]] ~= Function(func.Copy(), func.Copy());
 	}));
 	e.AddFunc("set_at_exit", FuncCall((string[] args, Environment env) {
 		if (args[0].isNumeric()) {
@@ -87,5 +121,56 @@ void YslModule(Environment e) {
 
 			env.atExit = env.funcs[args[0]][$ - 1].run;
 		}
+	}));
+	e.AddFunc("compile_mode", FuncCall((string[] args, Environment env) {
+		env.runMode = RunMode.Compile;
+	}));
+	e.AddCompFunc("run_mode", FuncCall((string[] args, Environment env) {
+		env.runMode = RunMode.Run;
+	}));
+	e.AddFunc("map_empty?", FuncCall((string[] args, Environment env) {
+		env.retStack ~= [env.GetWriteMap().entries.head is null? 1 : 0];
+	}));
+	e.AddFunc("map_end", FuncCall((string[] args, Environment env) {
+		auto map = env.GetWriteMap();
+
+		if (map.entries is null) {
+			stderr.writefln("Error: map_end: Map is empty");
+			throw new YSLError();
+		}
+
+		env.retStack ~= [map.entries.head.GetLastEntry().value.key];
+	}));
+	e.AddFunc("pop", FuncCall((string[] args, Environment env) {
+		switch (args[0]) {
+			case "pass":   env.PopPass();   break;
+			case "call":   env.PopCall();   break;
+			case "return": env.PopReturn(); break;
+			default: {
+				stderr.writefln("ysl.pop: Stack '%s' doesn't exist", args[0]);
+				throw new YSLError();
+			}
+		}
+	}));
+	e.AddFunc("goto_comp", FuncCall((string[] args, Environment env) {
+		auto line = parse!Value(args[0]);
+		if (env.Jump(line)) {
+			env.runMode = RunMode.Compile;
+			return;
+		};
+
+		stderr.writefln("Error: goto: Couldn't find line %d", line);
+		throw new YSLError();
+	}));
+	e.AddFunc("goto_inc_comp", FuncCall((string[] args, Environment env) {
+		auto line = parse!Value(args[0]);
+		if (env.Jump(line)) {
+			env.increment = true;
+			env.runMode   = RunMode.Compile;
+			return;
+		}
+
+		stderr.writefln("Error: goto_inc_comp: Couldn't find line %d", line);
+		throw new YSLError();
 	}));
 }

@@ -4,6 +4,21 @@ goto *.end
 .comment:
 	goto_inc $<call>
 
+.return:
+	import ysl
+	ysl.run_mode
+	ysl.pop call
+	ysl.goto_inc_comp $<call>
+
+.func:
+	import ysl
+	ysl.run_mode
+	var i = $<call>
+	print_ln !<pass>
+	ysl.goto_inc_comp $i
+
 .end:
 	import ysl
-	ysl.new_func "#" *.comment
+	ysl.new_comp_func "#"    *.comment
+	ysl.new_comp_func "func" *.func
+	goto_inc $<call>

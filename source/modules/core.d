@@ -76,14 +76,14 @@ void CoreModule(Environment e) {
 
 		env.retStack ~= [a > b? 1 : 0];
 	}));
-	e.AddFunc("import_g", FuncCall((string[] args, Environment env) {
+	e.AddHybridFunc("import_g", FuncCall((string[] args, Environment env) {
 		if (args[0] !in env.modules) {
 			throw new YSLError(format("Module '%s' doesn't exist", args[0]));
 		}
 
 		env.modules[args[0]](env);
 	}));
-	e.AddFunc("import", FuncCall((string[] args, Environment env) {
+	e.AddHybridFunc("import", FuncCall((string[] args, Environment env) {
 		if (args[0] !in env.modules) {
 			throw new YSLError(format("Module '%s' doesn't exist", args[0]));
 		}

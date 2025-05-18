@@ -170,6 +170,8 @@ class Environment {
 		modules       = new Module[string];
 		useNamespace  = false;
 		runMode       = RunMode.Run;
+		readMode      = RWMode.Current;
+		writeMode     = RWMode.Next;
 
 		import ysli.modules.core;
 		import ysli.modules.ysl;
@@ -454,9 +456,35 @@ class Environment {
 		namespace    = pnamespace;
 	}
 
+	static void DefaultCompCall(string[] args, Environment env) {
+		auto  line = env.PopCall();
+		auto  code = env.current[line];
+		auto  map  = env.GetWriteMap();
+		Value key  = 10;
+
+		if (map.entries.head !is null) {
+			key = map.entries.head.GetLastEntry().value.key + 10;
+		}
+
+		map[key]    = code;
+		env.written = true;
+	}
+
 	void AddFunc(string name, FuncCall func) {
 		funcs[useNamespace? format("%s.%s", namespace, name) : name] ~= Function(
-			null, func.Copy()
+			new FuncCall(&DefaultCompCall, true), func.Copy()
+		);
+	}
+
+	void AddCompFunc(string name, FuncCall func) {
+		funcs[useNamespace? format("%s.%s", namespace, name) : name] ~= Function(
+			func.Copy(), null
+		);
+	}
+
+	void AddHybridFunc(string name, FuncCall func) {
+		funcs[useNamespace? format("%s.%s", namespace, name) : name] ~= Function(
+			func.Copy(), func.Copy()
 		);
 	}
 
@@ -597,6 +625,7 @@ class Environment {
 					"=== EXCEPTION from line %d in iteration %d ===", ip.value.key,
 					iteration
 				);
+				writefln("%.10d: %s", ip.value.key, ip.value.value);
 				writeln(e);
 				exit(1);
 			}
@@ -615,7 +644,13 @@ class Environment {
 		}
 
 		ip = current.entries.head;
-		RunFromHere();
+
+		try {
+			RunFromHere();
+		}
+		catch (YSLDone) {
+			return;
+		}
 
 		if (atExit !is null) {
 			ip = current.entries.head.GetLastEntry();
