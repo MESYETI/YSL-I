@@ -102,25 +102,28 @@ class YSLDone : Exception {
 }
 
 class Environment {
-	bool               written;
-	CodeMap            current;
-	CodeMap            next;
-	Label              ip;
-	Function[]         substitutors;
-	Function           splitter;
-	Variable[]         passStack;
-	Value[]            callStack;
-	Variable[]         retStack;
-	Function[][string] funcs;
-	Variable[string]   globals;
-	Variable[string][] locals;
-	bool               increment;
-	Module[string]     modules;
-	size_t             iteration;
-	bool               useNamespace;
-	string             namespace;
-	RWMode             readMode;
-	RWMode             writeMode;
+	bool                       written;
+	CodeMap                    current;
+	CodeMap                    next;
+	Label                      ip;
+	Function[]                 substitutors;
+	Function                   splitter;
+	Variable[]                 passStack;
+	Value[]                    callStack;
+	Variable[]                 retStack;
+	Function[][string]         globalFuncs;
+	Function[][string]         funcs;
+	Variable[string]           globals;
+	Variable[string][]         locals;
+	bool                       increment;
+	Module[string]             modules;
+	size_t                     iteration;
+	bool                       useNamespace;
+	string                     namespace;
+	RWMode                     readMode;
+	RWMode                     writeMode;
+	Function[][string][string] sets;
+	string                     currentSet;
 
 	// vectors
 	Function* atExit;
@@ -129,21 +132,33 @@ class Environment {
 		current       = new SortedMap!(int, string);
 		next          = new SortedMap!(int, string);
 		Reset();
+
+		// global funcs
+		globalFuncs["set"] = [Function((string[] args, Environment env) {
+			if (args[0] !in env.sets) {
+				env.sets[args[0]] = new Function[][string];
+			}
+
+			env.SwitchSet(args[0]);
+		})];
 	}
 
 	void Reset() {
+		sets["YSL-I"] = new Function[][string];
+		SwitchSet("YSL-I");
 		written       = false;
 		substitutors ~= Function(&Substitutor, true);
 		splitter      = Function(&Split, true);
 		passStack     = [];
 		callStack     = [];
 		retStack      = [];
-		funcs         = new Function[][string];
 		globals       = new Variable[string];
 		locals        = [];
 		increment     = true;
 		modules       = new Module[string];
 		useNamespace  = false;
+		readMode      = RWMode.Current;
+		writeMode     = RWMode.Next;
 
 		import ysli.modules.core;
 		import ysli.modules.ysl;
@@ -154,6 +169,14 @@ class Environment {
 
 		// load core module
 		modules["core"](this);
+	}
+
+	void SwitchSet(string set) {
+		if (set !in sets) {
+			sets[set] = new Function[][string];
+		}
+		currentSet = set;
+		funcs      = sets[set];
 	}
 
 	CodeMap GetMap(RWMode mode) {
@@ -218,6 +241,7 @@ class Environment {
 					case "<pass>":   e.retStack ~= e.PopPass();   break;
 					case "<call>":   e.retStack ~= [e.PopCall()]; break;
 					case "<return>": e.retStack ~= e.PopReturn(); break;
+					case "<set>":    e.retStack ~= e.currentSet.StringToIntArray(); break;
 					default: {
 						if (!e.VariableExists(operand)) {
 							stderr.writefln(
@@ -503,14 +527,20 @@ class Environment {
 		return part;
 	}
 
+	bool FuncExists(string func) {
+		return (func in funcs) || (func in globalFuncs) || (func == "<splitter>");
+	}
+
 	Function GetFunc(Value line, string func) {
 		switch (func) {
 			case "<splitter>": return splitter;
 			default: {		
-				if (func !in funcs) {
+				if ((func !in funcs) && (func !in globalFuncs)) {
 					stderr.writefln("%d: Function '%s' does not exist", line, func);
 					throw new YSLError();
 				}
+
+				if (func in globalFuncs) return globalFuncs[func][$ - 1];
 
 				return funcs[func][$ - 1];
 			}
@@ -547,6 +577,19 @@ class Environment {
 			return; // label
 		}
 		else {
+			if (!FuncExists(parts[0]) && (currentSet != "YSL-I")) {
+				auto  map  = GetWriteMap();
+				Value key  = 10;
+
+				if (map.entries.head !is null) {
+					key = map.entries.head.GetLastEntry().value.key + 10;
+				}
+
+				map[key] = code;
+				written  = true;
+				return;
+			}
+
 			CallFunc(GetFunc(line, parts[0]), parts[1 .. $]);
 		}
 	}
@@ -561,8 +604,8 @@ class Environment {
 			}
 			catch (Exception e) {
 				writefln(
-					"=== EXCEPTION from line %d in iteration %d ===", ip.value.key,
-					iteration
+					"=== EXCEPTION from line %d in iteration %d in set '%s' ===",
+					ip.value.key, iteration, currentSet
 				);
 				writeln(e);
 				exit(1);
